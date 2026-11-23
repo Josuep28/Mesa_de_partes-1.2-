@@ -29,6 +29,7 @@ namespace Mesa_de_partes_1._2_
         static string[] niveles_estudio = { "Inicial", "Primaria", "Secundaria" };
         static string[] estados = { "Recibida", "En revisión", "Atendida", "Observada" };
         static string[] dominios_correo = { "gmail.com", "hotmail.com", "outlook.com", "yahoo.com" };
+        static string[] criterios_orden = { "Código", "Solicitante (A-Z)", "Fecha y hora (más antigua primero)", "Estado (Recibida a Observada)" };
 
         static string doc_certificado = "Certificado de estudios";
         static string carpeta_recibidos = "recibidos";
@@ -144,7 +145,7 @@ namespace Mesa_de_partes_1._2_
         }
 
         // Muestra una lista numerada y devuelve la opción elegida.
-        // palabra: "tipo", "nivel" o "estado". codigo_error: "004", "011" o "014".
+        // palabra: "tipo", "nivel", "estado" o "criterio". codigo_error: "004", "011", "014" o "019".
         static public string pedir_opcion(string titulo_lista, string[] lista, string palabra, string codigo_error)
         {
             if (cancelado)
@@ -356,6 +357,78 @@ namespace Mesa_de_partes_1._2_
             return texto.ToLower().Contains(termino.ToLower());
         }
 
+        // ---------- Ordenamiento ----------
+        // Intercambia dos posiciones de un arreglo.
+        static void intercambiar_texto(string[] v, int a, int b)
+        {
+            string aux = v[a];
+            v[a] = v[b];
+            v[b] = aux;
+        }
+
+        // Intercambia la solicitud a con la b en los 14 arreglos paralelos,
+        // para que cada solicitud siga completa en una sola posición.
+        static public void intercambiar(int a, int b)
+        {
+            intercambiar_texto(codigo_sol, a, b);
+            intercambiar_texto(fecha_sol, a, b);
+            intercambiar_texto(estado_sol, a, b);
+            intercambiar_texto(nombres_sol, a, b);
+            intercambiar_texto(tipo_id_sol, a, b);
+            intercambiar_texto(num_id_sol, a, b);
+            intercambiar_texto(telefono_sol, a, b);
+            intercambiar_texto(correo_sol, a, b);
+            intercambiar_texto(postulante_sol, a, b);
+            intercambiar_texto(tipo_sol, a, b);
+            intercambiar_texto(asunto_sol, a, b);
+            intercambiar_texto(nivel_sol, a, b);
+            intercambiar_texto(tercio_sol, a, b);
+            intercambiar_texto(justificacion_sol, a, b);
+        }
+
+        // Devuelve el texto por el que se compara la solicitud i según el criterio (1 a 4).
+        static public string clave_orden(int i, int criterio)
+        {
+            if (criterio == 1)
+                return codigo_sol[i];
+            if (criterio == 2)
+                return nombres_sol[i].ToLower();
+            if (criterio == 3)
+            {
+                // "dd/MM/yyyy HH:mm" se reordena como "yyyyMMddHHmm" para comparar como texto.
+                string f = fecha_sol[i];
+                return f.Substring(6, 4) + f.Substring(3, 2) + f.Substring(0, 2)
+                     + f.Substring(11, 2) + f.Substring(14, 2);
+            }
+            return Array.IndexOf(estados, estado_sol[i]).ToString("00");
+        }
+
+        // Compara las solicitudes a y b. Si empatan, desempata por código.
+        static public int comparar(int a, int b, int criterio)
+        {
+            int r = string.CompareOrdinal(clave_orden(a, criterio), clave_orden(b, criterio));
+            if (r == 0)
+                r = string.CompareOrdinal(codigo_sol[a], codigo_sol[b]);
+            return r;
+        }
+
+        // Ordenamiento por selección: en cada vuelta busca la solicitud menor
+        // entre i y el final, y la coloca en la posición i.
+        static public void ordenar(int criterio)
+        {
+            for (int i = 0; i < con_sol - 1; i++)
+            {
+                int menor = i;
+                for (int j = i + 1; j < con_sol; j++)
+                {
+                    if (comparar(j, menor, criterio) < 0)
+                        menor = j;
+                }
+                if (menor != i)
+                    intercambiar(i, menor);
+            }
+        }
+
         // ---------- Opciones del menú ----------
         static public void registrar_solicitud()
         {
@@ -521,12 +594,37 @@ namespace Mesa_de_partes_1._2_
             Console.WriteLine($"Estado actualizado: {codigo_sol[i]} -> {estado_sol[i]}");
         }
 
+        static public void ordenar_solicitudes()
+        {
+            Console.WriteLine("-------------------------------------------------");
+            Console.WriteLine("****ORDENAR SOLICITUDES****");
+            Console.WriteLine("-------------------------------------------------");
+            if (con_sol == 0)
+            {
+                Console.WriteLine("ERROR 005: NO HAY SOLICITUDES POR MOSTRAR.");
+                return;
+            }
+            Console.WriteLine("(Escriba 0 para cancelar)");
+            cancelado = false;
+            string elegido = pedir_opcion("Ordenar por:", criterios_orden, "criterio", "019");
+            if (cancelado)
+            {
+                Console.WriteLine("Operación cancelada.");
+                return;
+            }
+            int criterio = Array.IndexOf(criterios_orden, elegido) + 1;
+            ordenar(criterio);
+            guardar_datos();
+            Console.WriteLine("Solicitudes ordenadas por: " + elegido);
+            mostrar();
+        }
+
         static void Main(string[] args)
         {
             cargar_datos();
 
             int opc = 0;
-            while (opc != 5)
+            while (opc != 6)
             {
                 Console.Clear();
                 titulo();
@@ -534,7 +632,8 @@ namespace Mesa_de_partes_1._2_
                 Console.WriteLine("[2] Mostrar solicitudes recibidas");
                 Console.WriteLine("[3] Buscar solicitud");
                 Console.WriteLine("[4] Cambiar estado de una solicitud");
-                Console.WriteLine("[5] Salir");
+                Console.WriteLine("[5] Ordenar solicitudes");
+                Console.WriteLine("[6] Salir");
                 Console.Write("Ingrese una opción: ");
                 if (!int.TryParse(Console.ReadLine(), out opc))
                 {
@@ -558,10 +657,13 @@ namespace Mesa_de_partes_1._2_
                         cambiar_estado();
                         break;
                     case 5:
+                        ordenar_solicitudes();
+                        break;
+                    case 6:
                         Console.WriteLine("Saliendo del programa...");
                         break;
                     default:
-                        Console.WriteLine("ERROR 007: OPCIÓN INVÁLIDA. DEBE INGRESAR UN NÚMERO ENTRE 1 Y 5.");
+                        Console.WriteLine("ERROR 007: OPCIÓN INVÁLIDA. DEBE INGRESAR UN NÚMERO ENTRE 1 Y 6.");
                         break;
                 }
                 Console.ReadKey();
